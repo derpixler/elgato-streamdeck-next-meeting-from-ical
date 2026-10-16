@@ -1,0 +1,367 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Next Meeting</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				--fg: #d8d8d8;
+				--muted: #9a9a9a;
+				--accent: #4a90d9;
+				--line: #3a3a3a;
+			}
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				font-size: 12px;
+				color: var(--fg);
+				margin: 0;
+				padding: 10px 12px 16px;
+			}
+			h2 {
+				font-size: 11px;
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+				color: var(--muted);
+				margin: 14px 0 6px;
+				font-weight: 600;
+			}
+			h2:first-child { margin-top: 0; }
+			.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+			.row label { flex: 1; }
+			select {
+				background: #2d2d2d;
+				border: 1px solid var(--line);
+				border-radius: 4px;
+				color: var(--fg);
+				padding: 4px 6px;
+				font-size: 12px;
+				flex: 1;
+			}
+			input[type="text"] {
+				width: 100%;
+				box-sizing: border-box;
+				background: #2d2d2d;
+				border: 1px solid var(--line);
+				border-radius: 4px;
+				color: var(--fg);
+				padding: 5px 7px;
+				font-size: 12px;
+			}
+			.hint { color: var(--muted); font-size: 11px; margin: 2px 0 0; line-height: 1.4; }
+			.sources { border: 1px solid var(--line); border-radius: 5px; max-height: 260px; overflow-y: auto; }
+			.source { border-bottom: 1px solid var(--line); }
+			.source:last-child { border-bottom: none; }
+			.source > header {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				padding: 5px 8px;
+				background: #262626;
+				font-weight: 600;
+			}
+			.source > header .name { flex: 1; }
+			.source > header .count { color: var(--muted); font-weight: 400; }
+			.cals { padding: 3px 8px 6px 8px; }
+			.cal { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+			.cal label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+			button {
+				background: #3d3d3d;
+				border: 1px solid var(--line);
+				border-radius: 4px;
+				color: var(--fg);
+				padding: 3px 8px;
+				font-size: 11px;
+				cursor: pointer;
+			}
+			button:hover { background: #4a4a4a; }
+			button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+			.banner {
+				background: #3a2f1c;
+				border: 1px solid #6b5520;
+				border-radius: 5px;
+				padding: 8px 10px;
+				margin-bottom: 10px;
+			}
+			.banner p { margin: 0 0 7px; }
+			[hidden] { display: none !important; }
+		</style>
+	</head>
+	<body>
+		<div class="banner" id="consent" hidden>
+			<p id="consent-text">Stream Deck needs access to your calendars.</p>
+			<button class="primary" id="grant">Grant calendar access</button>
+			<button id="privacy" hidden>Open Privacy settings</button>
+		</div>
+
+		<h2>Calendars</h2>
+		<p class="hint" id="cal-hint">Loading calendars…</p>
+		<div class="sources" id="sources"></div>
+
+		<h2>Filtering</h2>
+		<div class="row">
+			<input type="checkbox" id="dedupe" />
+			<label for="dedupe">Collapse duplicates across calendars</label>
+		</div>
+		<div class="row">
+			<input type="checkbox" id="hideFree" />
+			<label for="hideFree">Hide events marked “Free”</label>
+		</div>
+
+		<h2>Meeting links</h2>
+		<input type="text" id="roomBaseUrl" placeholder="https://meet.example.com" />
+		<p class="hint">
+			Room base URL. When an event’s location is just a room path such as
+			<code>/DevDaily</code>, pressing the dial opens it under this host.
+		</p>
+		<input type="text" id="extraHosts" placeholder="meet.example.com, vc.example.org" style="margin-top: 8px" />
+		<p class="hint">Extra meeting hosts, comma separated. Links on these hosts count as join links.</p>
+
+		<script>
+			let websocket = null;
+			let uuid = null;
+			let config = {
+				configured: false,
+				calendarIds: [],
+				dedupe: true,
+				hideFree: true,
+				roomBaseUrl: "",
+				extraHosts: [],
+				sound: true,
+				soundName: "Ping",
+				autoReturnSec: 20,
+				showRunning: true,
+			};
+			const SOUNDS = [
+				"Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero",
+				"Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink",
+			];
+			let calendars = [];
+			/** Null until the plugin reports the calendar list, so we don't persist an empty selection. */
+			let listLoaded = false;
+			/** True once this dial's own (or the migrated legacy) settings arrived. */
+			let adopted = false;
+
+			function normalise() {
+				if (!Array.isArray(config.calendarIds)) config.calendarIds = [];
+				if (!Array.isArray(config.extraHosts)) config.extraHosts = [];
+			}
+
+			const $ = (id) => document.getElementById(id);
+
+			function send(event, payload) {
+				if (!websocket || websocket.readyState !== 1) return;
+				websocket.send(JSON.stringify({ event, context: uuid, payload }));
+			}
+
+			function sendToPlugin(payload) {
+				if (!websocket || websocket.readyState !== 1) return;
+				websocket.send(JSON.stringify({ event: "sendToPlugin", context: uuid, payload }));
+			}
+
+			function persist() {
+				if (!listLoaded) return;
+				// Per action instance, so two dials can differ.
+				send("setSettings", config);
+			}
+
+			function renderCalendars() {
+				const host = $("sources");
+				host.innerHTML = "";
+				if (calendars.length === 0) {
+					$("cal-hint").textContent = "No calendars available.";
+					return;
+				}
+				$("cal-hint").textContent =
+					"Tick the calendars that count. Untick a whole source to drop everyone else's calendars at once.";
+
+				const bySource = new Map();
+				for (const cal of calendars) {
+					if (!bySource.has(cal.source)) bySource.set(cal.source, []);
+					bySource.get(cal.source).push(cal);
+				}
+
+				for (const [source, cals] of bySource) {
+					const block = document.createElement("div");
+					block.className = "source";
+
+					const header = document.createElement("header");
+					const name = document.createElement("span");
+					name.className = "name";
+					name.textContent = source;
+					const count = document.createElement("span");
+					count.className = "count";
+					const selected = cals.filter((c) => config.calendarIds.includes(c.id)).length;
+					count.textContent = `${selected}/${cals.length}`;
+					const all = document.createElement("button");
+					all.textContent = "all";
+					all.onclick = () => {
+						for (const c of cals) if (!config.calendarIds.includes(c.id)) config.calendarIds.push(c.id);
+						persist();
+						renderCalendars();
+					};
+					const none = document.createElement("button");
+					none.textContent = "none";
+					none.onclick = () => {
+						const drop = new Set(cals.map((c) => c.id));
+						config.calendarIds = config.calendarIds.filter((id) => !drop.has(id));
+						persist();
+						renderCalendars();
+					};
+					header.append(name, count, all, none);
+
+					const list = document.createElement("div");
+					list.className = "cals";
+					for (const cal of cals) {
+						const row = document.createElement("div");
+						row.className = "cal";
+						const box = document.createElement("input");
+						box.type = "checkbox";
+						box.id = `cal-${cal.id}`;
+						box.checked = config.calendarIds.includes(cal.id);
+						box.onchange = () => {
+							if (box.checked) {
+								if (!config.calendarIds.includes(cal.id)) config.calendarIds.push(cal.id);
+							} else {
+								config.calendarIds = config.calendarIds.filter((id) => id !== cal.id);
+							}
+							persist();
+							count.textContent = `${cals.filter((c) => config.calendarIds.includes(c.id)).length}/${cals.length}`;
+						};
+						const label = document.createElement("label");
+						label.htmlFor = box.id;
+						label.textContent = cal.name;
+						label.title = cal.name;
+						row.append(box, label);
+						list.append(row);
+					}
+
+					block.append(header, list);
+					host.append(block);
+				}
+			}
+
+			function applyConfig() {
+				const sel = $("soundName");
+				if (sel.options.length === 0) {
+					for (const name of SOUNDS) sel.add(new Option(name, name));
+				}
+				sel.value = config.soundName ?? "Ping";
+				$("sound").checked = config.sound !== false;
+				sel.disabled = !$("sound").checked;
+				$("previewSound").disabled = !$("sound").checked;
+				$("showRunning").checked = config.showRunning !== false;
+				$("autoReturnSec").value = String(config.autoReturnSec ?? 20);
+				$("dedupe").checked = config.dedupe !== false;
+				$("hideFree").checked = config.hideFree !== false;
+				$("roomBaseUrl").value = config.roomBaseUrl ?? "";
+				$("extraHosts").value = (config.extraHosts ?? []).join(", ");
+			}
+
+			$("dedupe").onchange = () => {
+				config.dedupe = $("dedupe").checked;
+				persist();
+			};
+			$("hideFree").onchange = () => {
+				config.hideFree = $("hideFree").checked;
+				persist();
+			};
+			$("roomBaseUrl").onchange = () => {
+				config.roomBaseUrl = $("roomBaseUrl").value.trim();
+				persist();
+			};
+			$("extraHosts").onchange = () => {
+				config.extraHosts = $("extraHosts")
+					.value.split(",")
+					.map((h) => h.trim())
+					.filter(Boolean);
+				persist();
+			};
+			$("showRunning").onchange = () => {
+				config.showRunning = $("showRunning").checked;
+				persist();
+			};
+			$("autoReturnSec").onchange = () => {
+				config.autoReturnSec = Number($("autoReturnSec").value);
+				persist();
+			};
+			$("sound").onchange = () => {
+				config.sound = $("sound").checked;
+				$("soundName").disabled = !config.sound;
+				$("previewSound").disabled = !config.sound;
+				persist();
+			};
+			$("soundName").onchange = () => {
+				config.soundName = $("soundName").value;
+				persist();
+				sendToPlugin({ event: "previewSound", soundName: config.soundName });
+			};
+			$("previewSound").onclick = () => sendToPlugin({ event: "previewSound", soundName: config.soundName });
+			$("grant").onclick = () => sendToPlugin({ event: "requestAccess" });
+			$("privacy").onclick = () => sendToPlugin({ event: "openPrivacyPane" });
+
+			function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+				uuid = inUUID;
+				websocket = new WebSocket(`ws://127.0.0.1:${inPort}`);
+				websocket.onopen = () => {
+					websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+					send("getSettings");
+					// Settings used to be global; read them once so an existing
+					// configuration carries over to this dial instead of being lost.
+					send("getGlobalSettings");
+					sendToPlugin({ event: "getCalendars" });
+				};
+				websocket.onmessage = (msg) => {
+					const data = JSON.parse(msg.data);
+					if (data.event === "didReceiveSettings") {
+						const own = data.payload?.settings ?? {};
+						if (own.configured) {
+							config = { ...config, ...own };
+							adopted = true;
+						}
+						normalise();
+						applyConfig();
+						renderCalendars();
+						return;
+					}
+					if (data.event === "didReceiveGlobalSettings") {
+						// Migration only: never overwrite this dial's own settings.
+						const legacy = data.payload?.settings ?? {};
+						if (!adopted && legacy.configured) {
+							config = { ...config, ...legacy };
+							adopted = true;
+							normalise();
+							applyConfig();
+							renderCalendars();
+							persist();
+						}
+						return;
+					}
+					if (data.event === "sendToPropertyInspector" && data.payload?.event === "calendars") {
+						calendars = data.payload.calendars ?? [];
+						const kind = data.payload.authKind;
+						const needsConsent = kind === "needs-consent";
+						const denied = kind === "denied";
+						$("consent").hidden = !(needsConsent || denied);
+						$("grant").hidden = !needsConsent;
+						$("privacy").hidden = !denied;
+						if (denied) {
+							$("consent-text").textContent =
+								"Calendar access is denied for Stream Deck. Enable it under Privacy & Security → Calendars.";
+						}
+						// The plugin picks the first-run default; only step in if it could not.
+						if (!config.configured && calendars.length > 0) {
+							config.calendarIds = calendars
+								.filter((c) => c.writable && !/\(/.test(c.name))
+								.map((c) => c.id);
+							config.configured = true;
+						}
+						listLoaded = true;
+						persist();
+						renderCalendars();
+					}
+				};
+			}
+		</script>
+	</body>
+</html>

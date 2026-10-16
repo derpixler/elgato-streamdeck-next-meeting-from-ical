@@ -1,0 +1,53 @@
+{
+	"name": "streamdeck-next-meeting",
+	"version": "0.1.0",
+	"description": "Stream Deck + dial showing the next event from the local macOS Calendar with the time left until it starts. Rotate to browse upcoming events, press to join the meeting.",
+	"type": "module",
+	"private": true,
+	"license": "MIT",
+	"scripts": {
+		"build": "rollup -c",
+		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.derpixler.next-meeting\"",
+		"validate": "streamdeck validate",
+		"test": "tsc -p tsconfig.test.json && node --test .test-build/test/*.test.js",
+		"preview": "tsc -p tsconfig.test.json && node .test-build/test/preview.js"
+	},
+	"devDependencies": {
+		"@elgato/cli": "^1.10.2",
+		"@rollup/plugin-commonjs": "^28.0.2",
+		"@rollup/plugin-node-resolve": "^16.0.0",
+		"@rollup/plugin-terser": "^0.4.4",
+		"@rollup/plugin-typescript": "^12.1.2",
+		"@tsconfig/node20": "^20.1.4",
+		"@types/node": "^22.13.0",
+		"rollup": "^4.32.1",
+		"tslib": "^2.8.1",
+		"typescript": "^5.7.3"
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "^3.0.2",
+		"@elgato/utils": "^0.6.1"
+	},
+	"author": "René Reimann (https://github.com/derpixler)",
+	"homepage": "https://github.com/derpixler/elgato-streamdeck-next-meeting-from-ical#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/derpixler/elgato-streamdeck-next-meeting-from-ical.git"
+	},
+	"bugs": {
+		"url": "https://github.com/derpixler/elgato-streamdeck-next-meeting-from-ical/issues"
+	},
+	"keywords": [
+		"stream-deck",
+		"streamdeck",
+		"elgato",
+		"stream-deck-plus",
+		"macos",
+		"calendar",
+		"eventkit",
+		"ical",
+		"meetings",
+		"dial",
+		"encoder"
+	]
+}

@@ -1,0 +1,51 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "Next Meeting",
+	"Version": "0.1.0.0",
+	"Author": "René Reimann",
+	"Description": "Shows the next event from the local macOS Calendar on a Stream Deck + dial, with the time remaining until it starts. Rotate to browse upcoming events, press to join the meeting. Reads EventKit directly, so no calendar feed URLs are needed.",
+	"Category": "Next Meeting",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"Icon": "imgs/plugin/marketplace",
+	"CodePath": "bin/plugin.js",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "enabled"
+	},
+	"UUID": "com.derpixler.next-meeting",
+	"Actions": [
+		{
+			"Name": "Next Meeting",
+			"UUID": "com.derpixler.next-meeting.dial",
+			"Icon": "imgs/actions/next-meeting/icon",
+			"Tooltip": "Next calendar event with a countdown. Rotate to browse upcoming events, press to open the meeting link.",
+			"Controllers": [
+				"Encoder"
+			],
+			"PropertyInspectorPath": "ui/next-meeting.html",
+			"States": [
+				{
+					"Image": "imgs/actions/next-meeting/icon"
+				}
+			],
+			"Encoder": {
+				"layout": "layouts/next-meeting.json",
+				"TriggerDescription": {
+					"Rotate": "Browse events",
+					"Push": "Open meeting link"
+				}
+			}
+		}
+	],
+	"URL": "https://github.com/derpixler/elgato-streamdeck-next-meeting-from-ical"
+}
