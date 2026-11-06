@@ -11,7 +11,7 @@ a dial).
 
 ```
 ┌──────────────────────────┐
-│ ×8 Global (Martin)  NEXT │   calendar · ×N when duplicates were collapsed
+│ ×8 Team (Alex)      NEXT │   calendar · ×N when duplicates were collapsed
 │ Sprint Review            │   event title
 │ 12 min             10:30 │   countdown · start time
 │ ████████████░░░░░░░░░░░░ │   urgency

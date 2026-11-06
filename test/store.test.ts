@@ -42,7 +42,7 @@ test("the same meeting on many calendars collapses to one, counted", () => {
 });
 
 test("a different meeting at the same time is not collapsed into it", () => {
-	const out = shapeEvents([raw(600), raw(600, { title: "Ops Daily", calName: "Global" })], cfg(), NOW);
+	const out = shapeEvents([raw(600), raw(600, { title: "Ops Daily", calName: "Team" })], cfg(), NOW);
 	assert.equal(out.length, 2);
 });
 
@@ -52,7 +52,7 @@ test("dedupe off keeps every copy", () => {
 });
 
 test("events marked Free are dropped only while that filter is on", () => {
-	const events = [raw(600), raw(1_200, { availability: 1, title: "Wirklich im Office" })];
+	const events = [raw(600), raw(1_200, { availability: 1, title: "Office Day" })];
 	assert.equal(shapeEvents(events, cfg({ hideFree: true }), NOW).length, 1);
 	assert.equal(shapeEvents(events, cfg({ hideFree: false }), NOW).length, 2);
 });
@@ -89,7 +89,7 @@ test("each dial sees only its own calendars, not the shared union", () => {
 	// silently showed the first dial's meetings.
 	const union = [
 		raw(600, { calId: "work", title: "Sprint Review" }),
-		raw(1_200, { calId: "private", title: "Zahnarzt" }),
+		raw(1_200, { calId: "private", title: "Dentist" }),
 		raw(1_800, { calId: "colleague", title: "Ops Daily" }),
 	];
 
@@ -102,7 +102,7 @@ test("each dial sees only its own calendars, not the shared union", () => {
 	const personal = shapeEvents(union, cfg({ calendarIds: ["private"] }), NOW);
 	assert.deepEqual(
 		personal.map((e) => e.title),
-		["Zahnarzt"],
+		["Dentist"],
 	);
 
 	const both = shapeEvents(union, cfg({ calendarIds: ["work", "colleague"] }), NOW);

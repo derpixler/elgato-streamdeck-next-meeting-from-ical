@@ -108,7 +108,7 @@ function applyFixture(name: string): void {
 				tz: "Europe/Berlin",
 				todayStart,
 				lastProbeAt: Date.now(),
-				events: [fake(270, "Sprint Review", 8), fake(7_200, "1:1 mit Team"), fake(90_000, "WebMontag")],
+				events: [fake(270, "Sprint Review", 8), fake(7_200, "1:1 with Lead"), fake(90_000, "Community Meetup")],
 			});
 			break;
 		case "starting":
@@ -118,7 +118,7 @@ function applyFixture(name: string): void {
 				tz: "Europe/Berlin",
 				todayStart,
 				lastProbeAt: Date.now(),
-				events: [fake(-5, "Sprint Review", 8), fake(3_600, "1:1 mit Team")],
+				events: [fake(-5, "Sprint Review", 8), fake(3_600, "1:1 with Lead")],
 			});
 			break;
 		case "running":

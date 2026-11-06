@@ -31,7 +31,7 @@ function ev(startOffsetSec: number, over: Partial<MergedEvent> = {}): MergedEven
 		availability: 0,
 		status: 1,
 		calId: "c1",
-		calName: "Global",
+		calName: "Team",
 		location: "",
 		urls: [],
 		mergedCount: 1,
@@ -113,7 +113,7 @@ test("colour escalates toward the event but stays calm while browsing", () => {
 
 test("merged duplicates are surfaced in the context line", () => {
 	const fb = buildFeedback(state([ev(600, { mergedCount: 8 })]), 0, NOW);
-	assert.match(val(fb, "ctx"), /^×8 Global/);
+	assert.match(val(fb, "ctx"), /^×8 Team/);
 });
 
 test("a stale cache looks stale", () => {
